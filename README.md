@@ -1,12 +1,12 @@
 # Ventilator-Prototype
 Disclaimers
-1. This is not a device that is FDA approved.
+1. This device is not approved by FDA or any other regulatory body.
 2. This is not a ventilator or replacement for ventilators.
-3. This device should never be used on a patient when there is an FDA approved device is available.
+3. This device should never be used on a patient while there is an FDA approved device available.
 4. Only practitioners who are fully competent in managing critically ill patients should consider this device.
 5. There is absolutely no clinical testing done on this device. This device should be considered very high risk, and extreme caution should be exercised to consider using this device on a human being. In other workd, the only time the benefit of using this device may outweigh the risks would be when the patient is faced with certain death due to absence of any FDA approved devices or therapies.
-6. Our team has provided this instruction as good samaritans for everyone and will not accept liability for any damages that this device may cause.
-7. Anyone who follows this instruction agrees to follow all the loal and federal regulatory protocols for compassionate use of investigational new devices and if applicable inform FDA and local IRB.
+6. Our team has provided this instruction as good samaritans for everyone and will not accept liability for any damages that the use of this device may cause.
+7. Anyone who follows this instruction agrees to follow all the loal and federal regulatory protocols for compassionate use of investigational new devices and if applicable inform all the regulatory bodies such as FDA or local IRB.
 
 
 This is an effort to create a make shift device to bridge patients infected with COVID-19 who need mechanical ventilation only when there is no ventilator available
