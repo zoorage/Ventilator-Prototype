@@ -1,75 +1,90 @@
-/*
- * Simple demo, should work with any driver board
- *
- * Connect STEP, DIR as indicated
- *
- * Copyright (C)2015-2017 Laurentiu Badea
- *
- * This file may be redistributed under the terms of the MIT license.
- * A copy of this license has been included with this distribution in the file LICENSE.
+/*  Ventilator control software prototype 1.3
+ *  Written by Alec Gill
+ *  March 29 2020
  */
-#include <Arduino.h>
-#include "BasicStepperDriver.h"
 
-// Motor steps per revolution. Most steppers are 200 steps or 1.8 degrees/step
-#define MOTOR_STEPS 800
-#define RPM 30
-int read_potentiometer = A1;
+int DirectionPin = 2;            // select pin to control the direction of the stepper motor
+int stepPin = 5;                 // select pin to step the motor
+int enablePin = 8;              // select pin to enable the motor driver
+int respiratoryRatePin = A0;     // select pin to get speed of cycle information
+int depthOfStrokePin = A1;       // select pin to get speed of depth information
+int respiratoryRateVal = 0;      // vairable that will store speed value
+int depthOfStrokeVal = 0;        // vairable that will store depth value
+int steppingSpeedOfMotor = 500; // change this value to adjust the stepping rate
+int stepCount = 0;               // will count the number of steps taken
 
-// Since microstepping is set externally, make sure this matches the selected mode
-// If it doesn't, the motor will move at a different RPM than chosen
-// 1=full step, 2=half step etc.
-#define MICROSTEPS 1
-
-// All the wires needed for full functionality
-#define DIR 2
-#define STEP 5
-//Uncomment line to use enable/disable functionality
-//#define SLEEP 13
-
-// 2-wire basic config, microstepping is hardwired on the driver
-BasicStepperDriver stepper(MOTOR_STEPS, DIR, STEP);
-
-//Uncomment line to use enable/disable functionality
-//BasicStepperDriver stepper(MOTOR_STEPS, DIR, STEP, SLEEP);
-
-float delay_time;
-int value_potentiometer = 0;
-
-void setup() {
-    stepper.begin(RPM, MICROSTEPS);
-    // if using enable/disable on ENABLE pin (active LOW) instead of SLEEP uncomment next line
-    // stepper.setEnableActiveState(LOW);
+void setup()
+{
+    pinMode(DirectionPin, OUTPUT);       // set the motor control pins to output
+    pinMode(stepPin, OUTPUT);
+    pinMode(enablePin, OUTPUT);  
+    digitalWrite(enablePin, LOW);        // enable the stepper motor driver.  MAY NEED CHANGED TO LOW IF DRIVER IS ACTIVE LOW
+   
+    // upon startup we will not know where the plunger is located so bring it back to the starting position.    i.e. move plunger to top of cycle (commented out for testing)
+   digitalWrite(DirectionPin, LOW);    // set the driver to go in reverse
+    for(int i = 0; i < 2000; i++)        // set the plunger to the starting position by stepping all the way to the top of stroke
+    {
+       // step the motor
+       digitalWrite(stepPin, HIGH);      // set the step pin to 5v                            
+       delayMicroseconds(500);           // delay 1/2 milisecond since the driver requires at least 10us pulse to step
+       digitalWrite(stepPin, LOW);       // set the step pin to 0v
+   
+     delayMicroseconds(steppingSpeedOfMotor);
+    }
 }
 
-void loop() {
-  value_potentiometer = analogRead(read_potentiometer); 
+void loop()
+{
+  int tempRespiratoryRate  = analogRead(respiratoryRatePin); // get the potentiometer input
+  int tempDepthOfStrokeVal = analogRead(depthOfStrokePin);  
 
-   if (value_potentiometer >  50   ){
-      delay_time=(2000);  
-    }
-    else
-    {
-      delay_time=9000;    // Minumum speed when it is 0
-      }
+  //select one of three resparatory rates based off of the potentiometer value
+   if(tempRespiratoryRate < 341)  respiratoryRateVal = 850;                                   // if we are in the first third of the potentiometer 
+ 
+   else if(tempRespiratoryRate > 341 && tempRespiratoryRate < 682)  respiratoryRateVal = 1300; // if we are in the second third of the potentiometer
+
+   else if(tempRespiratoryRate > 682)  respiratoryRateVal = 2000;                              // if we are in the last third of the potentiometer 
+
+   else    respiratoryRateVal = 1;                                                            // else we are inbetween one of the values above so set depth to one
   
-    // energize coils - the motor will hold position
-    // stepper.enable();
+
+
+   //select one of three depth values based off of the potentiometer value
+   if(tempDepthOfStrokeVal < 200) depthOfStrokeVal = 4000;                                    // if we are in the first third of the potentiometer 
+
+   else if(tempDepthOfStrokeVal > 200 && tempDepthOfStrokeVal < 530)  depthOfStrokeVal = 3000;// if we are in the second third of the potentiometer
+ 
+   else if(tempDepthOfStrokeVal > 530)  depthOfStrokeVal = 2000;                              // if we are in the last third of the potentiometer 
+
+   else   depthOfStrokeVal = 1;                                                               // else we are inbetween one of the values above so set depth to one
+
+
   
-    /*
-     * Moving motor one full revolution using the degree notation
-     */
-    stepper.rotate(200);
-    delay(200);
+  // "press" the bag (inhale)
+  digitalWrite(DirectionPin, HIGH);           // set the driver to go forward
+  while(stepCount < depthOfStrokeVal)         // while we are not at the bottom of a stroke step the motor
+  {
+    // step the motor
+    digitalWrite(stepPin, HIGH);              // set the step pin to 5v
+    delayMicroseconds(100);                   // delay 100 microseconds since the driver requires at least 10us pulse to step
+    digitalWrite(stepPin, LOW);               // set the step pin to 0v
+   
+    stepCount++;                              // increment the number of steps taken
+    delayMicroseconds(steppingSpeedOfMotor);  // this delay controls the stepping speed
+  }
 
-    /*
-     * Moving motor to original position using steps
-     */
-    //stepper.move(-MOTOR_STEPS*MICROSTEPS);
-    stepper.rotate(-200);
+  delay(500);              // This delay controls the respratory rate.
 
-    // pause and allow the motor to be moved by hand
-    // stepper.disable();
-
-    delay(delay_time);
+  // "unpress" the bag (exhale)
+  digitalWrite(DirectionPin, LOW);            // set the driver to go in reverse
+   while(stepCount > 0)                       // while we are not back at the starting position.
+  {
+    // step the motor
+    digitalWrite(stepPin, HIGH);              // set the step pin to 5v
+    delayMicroseconds(100);                   // delay 100 microseconds since the driver requires at least 10us pulse to step
+    digitalWrite(stepPin, LOW);               // set the step pin to 0v
+    delayMicroseconds(steppingSpeedOfMotor);  // this delay controls the stepping speed
+    stepCount--;                              // decrement the number of steps taken
+  }
+  delay(respiratoryRateVal);                                 // This delay controls the respratory rate
 }
