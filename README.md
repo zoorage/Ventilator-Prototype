@@ -1,4 +1,4 @@
-# Ventilator-Prototype
+# Ventilator-Prototype: Bridge to Mechanical Ventilation (Bridge)
 Disclaimers
 1. This device is not approved by FDA or any other regulatory body.
 2. This is not a ventilator or replacement for ventilators.
@@ -18,3 +18,5 @@ Once I fix my 3D printer's bed, I will post the more elegant prototype.
 Here I'm using and arduino with DRV 8825 driver for a NEMA 17 stepper motor. 
 I'm working on a few other prototypes too and once I can do more testing, I will post the STL files, arduino sketch and the part list.
 Again, this is not a ventilator replacement; this is only to be used when patients have no other options and will simply die without a ventilator.
+
+My team is working on the FDA's EUA application and I will provide updates as soon as I can.
