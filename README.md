@@ -1,4 +1,8 @@
 # Ventilator-Prototype: Bridge to Mechanical Ventilation (Bridge)
+
+Heads up: I will upload the updated 3d print files as soon as I can (working on FDA application). We are currently on version 12. The stl. files that are here now are version 4.
+If anyone has experience with FDA applications for EUA and are able to help with this process, please contact me. I can use all the help I can get.
+
 Disclaimers
 1. This device is not approved by FDA or any other regulatory body.
 2. This is not a ventilator or replacement for ventilators.
