@@ -1,90 +1,243 @@
-/*  Ventilator control software prototype 1.3
+/*  Ventilator control software prototype 2.0
  *  Written by Alec Gill
- *  March 29 2020
+ *  April 9 2020
+ *  This is still in alpha stage and is not complete
  */
 
-int DirectionPin = 2;            // select pin to control the direction of the stepper motor
-int stepPin = 5;                 // select pin to step the motor
-int enablePin = 8;              // select pin to enable the motor driver
-int respiratoryRatePin = A0;     // select pin to get speed of cycle information
-int depthOfStrokePin = A1;       // select pin to get speed of depth information
+int DirectionPin = 8;            // select pin to control the direction of the stepper motor
+int stepPin = 9;                 // select pin to step the motor
+int enablePin = 13;              // select pin to enable the motor driver
+int buzzerPin = 6;
+int topLimitSwitch = 3;          // select an inturrupt pin to tell the program when we hit the top limit
+int respiratoryVerifySwitch = 2; // select an inturrupt pin to tell the program if the machine is working
+int respiratoryRatePin = A1;     // select pin to get speed of cycle information
+int depthOfStrokePin = A0;       // select pin to get speed of depth information
 int respiratoryRateVal = 0;      // vairable that will store speed value
 int depthOfStrokeVal = 0;        // vairable that will store depth value
-int steppingSpeedOfMotor = 500; // change this value to adjust the stepping rate
+int steppingSpeedOfMotor = 500;  // change this value to adjust the stepping rate
 int stepCount = 0;               // will count the number of steps taken
+bool topLimit = false;
+int prevBeepVal = 0;
+bool error = false;
+bool respirationWorking = false;
+bool firstRun = true;
+unsigned long currentMillis = 0;
+unsigned long previousMillis = 0;
+unsigned long previousErrorTime = 0;
+int motorSpeed = 0;
+bool inhale = false;
 
+bool once = false;
 void setup()
-{
+{ 
+  digitalWrite(buzzerPin, HIGH); 
     pinMode(DirectionPin, OUTPUT);       // set the motor control pins to output
     pinMode(stepPin, OUTPUT);
     pinMode(enablePin, OUTPUT);  
-    digitalWrite(enablePin, LOW);        // enable the stepper motor driver.  MAY NEED CHANGED TO LOW IF DRIVER IS ACTIVE LOW
-   
+    pinMode(buzzerPin, OUTPUT);
+    digitalWrite(enablePin, LOW);        // enable the stepper motor driver. 
+    
+    pinMode(topLimitSwitch, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(topLimitSwitch), hitTopLimit, CHANGE);
+
+    pinMode(respiratoryVerifySwitch, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(respiratoryVerifySwitch), respiratoryWorking, CHANGE);
+    
     // upon startup we will not know where the plunger is located so bring it back to the starting position.    i.e. move plunger to top of cycle (commented out for testing)
-   digitalWrite(DirectionPin, LOW);    // set the driver to go in reverse
-    for(int i = 0; i < 2000; i++)        // set the plunger to the starting position by stepping all the way to the top of stroke
+    digitalWrite(DirectionPin, LOW);    // set the driver to go in reverse. (go to top)
+    if(once == false)  // bug removal. Make sure topLimit is reset once everything has started.
+    {                  // It was skipping the reset to the top loop. Im thinking the inturrupt is 
+      once = true;     // being triggered upon startup which sets topLimit to true. Also fun note..
+      topLimit = false;// It seems setup runs in a loop? If I dont include the if statement that only
+    }                  // sets toplimit=false "one time" topLimit will never be set to true. 
+    
+    
+    while(!topLimit)
     {
-       // step the motor
-       digitalWrite(stepPin, HIGH);      // set the step pin to 5v                            
-       delayMicroseconds(500);           // delay 1/2 milisecond since the driver requires at least 10us pulse to step
-       digitalWrite(stepPin, LOW);       // set the step pin to 0v
-   
-     delayMicroseconds(steppingSpeedOfMotor);
+      stepMotor(700);
     }
+    
+    digitalWrite(DirectionPin, HIGH); // move the rack down from top of limit
+    for(int i = 0; i < 300; i++)stepMotor(700); 
+  
+    respirationWorking = false;
+    error = false;
 }
 
+bool respSelc1 = false;
+bool respSelc2 = false;
+bool respSelc3 = false;
+
+bool depthSelc1 = false;
+bool depthSelc2 = false;
+bool depthSelc3 = false;
 void loop()
 {
+  topLimit = false;
+  int numberOfBeepResp = 0;
+  int numberOfBeepDepth = 0;
+  currentMillis = millis();
+
   int tempRespiratoryRate  = analogRead(respiratoryRatePin); // get the potentiometer input
   int tempDepthOfStrokeVal = analogRead(depthOfStrokePin);  
-
-  //select one of three resparatory rates based off of the potentiometer value
-   if(tempRespiratoryRate < 341)  respiratoryRateVal = 850;                                   // if we are in the first third of the potentiometer 
- 
-   else if(tempRespiratoryRate > 341 && tempRespiratoryRate < 682)  respiratoryRateVal = 1300; // if we are in the second third of the potentiometer
-
-   else if(tempRespiratoryRate > 682)  respiratoryRateVal = 2000;                              // if we are in the last third of the potentiometer 
-
-   else    respiratoryRateVal = 1;                                                            // else we are inbetween one of the values above so set depth to one
   
+  if(firstRun)// upon startup make 3 beeps
+  {
+      tone(buzzerPin, 1000);
+      delay(100);       
+      noTone(buzzerPin);  
+      digitalWrite(buzzerPin, HIGH);
+      delay(100);       
+      tone(buzzerPin, 1000);
+      delay(100);       
+      noTone(buzzerPin);  
+      digitalWrite(buzzerPin, HIGH);
+      delay(100);   
+      tone(buzzerPin, 1000);
+      delay(100);       
+      noTone(buzzerPin);  
+      digitalWrite(buzzerPin, HIGH);
+      delay(100);   
+  }
+  //select one of three resparatory rates based off of the potentiometer value
+   if(!respSelc1 && tempRespiratoryRate < 341)
+   {
+      respSelc1 = true;     // set bools to represent which setting has been selected.  
+      respSelc2 = false;
+      respSelc3 = false;
+      respiratoryRateVal = 850;                                   // if we are in the first third of the potentiometer 
+      numberOfBeepResp = 1;
+      motorSpeed = 500;
+   }
+ 
+   else if(!respSelc2 && tempRespiratoryRate > 341 && tempRespiratoryRate < 682)
+   {
+      respSelc1 = false; // set bools to represent which setting has been selected.  
+      respSelc2 = true;
+      respSelc3 = false;
+      respiratoryRateVal = 1300; // if we are in the second third of the potentiometer
+      numberOfBeepResp = 2;
+      motorSpeed = 700;
+   }
 
+   else if(!respSelc3 && tempRespiratoryRate > 682)
+   {
+      respSelc1 = false; // set bools to represent which setting has been selected.  
+      respSelc2 = false;
+      respSelc3 = true;
+      respiratoryRateVal = 2000;                              // if we are in the last third of the potentiometer 
+      numberOfBeepResp = 3;
+      motorSpeed = 900;
+   }
+  
+  while(!firstRun && numberOfBeepResp > 0)
+  {
+      tone(buzzerPin, 1500);
+      delay(100); 
+          
+      noTone(buzzerPin);  
+      digitalWrite(buzzerPin, HIGH);       
+      delay(100);        
+      numberOfBeepResp--;
+  }                                                     
 
    //select one of three depth values based off of the potentiometer value
-   if(tempDepthOfStrokeVal < 200) depthOfStrokeVal = 4000;                                    // if we are in the first third of the potentiometer 
+   if(!depthSelc1 && tempDepthOfStrokeVal < 341)
+   {
+      depthSelc1 = true;
+      depthSelc2 = false;
+      depthSelc3 = false;
+      numberOfBeepDepth =3;
+      depthOfStrokeVal = 4000;                                    // if we are in the first third of the potentiometer 
+   }
 
-   else if(tempDepthOfStrokeVal > 200 && tempDepthOfStrokeVal < 530)  depthOfStrokeVal = 3000;// if we are in the second third of the potentiometer
+   else if(!depthSelc2 && tempDepthOfStrokeVal > 341 && tempDepthOfStrokeVal < 682)  
+   {
+      depthSelc1 = false;
+      depthSelc2 = true;
+      depthSelc3 = false;
+      numberOfBeepDepth = 2;
+      depthOfStrokeVal = 3000;// if we are in the second third of the potentiometer
+   }
  
-   else if(tempDepthOfStrokeVal > 530)  depthOfStrokeVal = 2000;                              // if we are in the last third of the potentiometer 
+   else if(!depthSelc3 && tempDepthOfStrokeVal > 682) 
+   {
+      depthSelc1 = false;
+      depthSelc2 = false;
+      depthSelc3 = true;
+      numberOfBeepDepth = 1;
+      depthOfStrokeVal = 2000;                        // if we are in the last third of the potentiometer 
+   }
 
-   else   depthOfStrokeVal = 1;                                                               // else we are inbetween one of the values above so set depth to one
-
-
+  while(!firstRun && numberOfBeepDepth > 0)
+  {
+      tone(buzzerPin, 1000);
+      delay(100);       
+      noTone(buzzerPin);  
+       digitalWrite(buzzerPin, HIGH);
+      delay(100);       
+      numberOfBeepDepth--;
+  }
+  firstRun = false;
+  if(inhale == false && currentMillis > (previousMillis + respiratoryRateVal) )  // "press" the bag (inhale)
+  {
+    digitalWrite(DirectionPin, HIGH);           // set the driver to go forward
+    if(stepCount < depthOfStrokeVal)            // while we are not at the bottom of a stroke step the motor
+    {
+      stepMotor(motorSpeed); // step the motor
+      stepCount++;                              // increment the number of steps taken
+    }
+    else
+    {
+      inhale = true;
+      previousMillis = millis();  
+      if(!respirationWorking)error = true; // if the resparation switch did not get pressed during the cycle set error to true
+      respirationWorking = false;          // reset the respairation bool to false 
+    }
+  }
+ 
   
-  // "press" the bag (inhale)
-  digitalWrite(DirectionPin, HIGH);           // set the driver to go forward
-  while(stepCount < depthOfStrokeVal)         // while we are not at the bottom of a stroke step the motor
-  {
-    // step the motor
-    digitalWrite(stepPin, HIGH);              // set the step pin to 5v
-    delayMicroseconds(100);                   // delay 100 microseconds since the driver requires at least 10us pulse to step
-    digitalWrite(stepPin, LOW);               // set the step pin to 0v
-   
-    stepCount++;                              // increment the number of steps taken
-    delayMicroseconds(steppingSpeedOfMotor);  // this delay controls the stepping speed
+  if(inhale == true && currentMillis > (previousMillis + 500))
+  { 
+     // "unpress" the bag (exhale)
+     digitalWrite(DirectionPin, LOW);            // set the driver to go in reverse
+     if(stepCount > 0)                           // while we are not back at the starting position.
+     {
+        stepMotor(motorSpeed*2);// step the motor
+        stepCount--;                              // decrement the number of steps taken
+     }
+     else
+     {
+        inhale = false; 
+        if(!respirationWorking)
+        {
+          error = true;
+        }
+        respirationWorking = false;
+     }
+     
   }
+  if(error) digitalWrite(buzzerPin, LOW); // if error make error sound  
+}
 
-  delay(500);              // This delay controls the respratory rate.
+void stepMotor(int steppingSpeed)
+{
+   digitalWrite(stepPin, HIGH);              // set the step pin to 5v
+   delayMicroseconds(100);                   // delay 100 microseconds since the driver requires at least 10us pulse to step
+   digitalWrite(stepPin, LOW);               // set the step pin to 0v
+   delayMicroseconds(steppingSpeed);
+}
 
-  // "unpress" the bag (exhale)
-  digitalWrite(DirectionPin, LOW);            // set the driver to go in reverse
-   while(stepCount > 0)                       // while we are not back at the starting position.
-  {
-    // step the motor
-    digitalWrite(stepPin, HIGH);              // set the step pin to 5v
-    delayMicroseconds(100);                   // delay 100 microseconds since the driver requires at least 10us pulse to step
-    digitalWrite(stepPin, LOW);               // set the step pin to 0v
-    delayMicroseconds(steppingSpeedOfMotor);  // this delay controls the stepping speed
-    stepCount--;                              // decrement the number of steps taken
-  }
-  delay(respiratoryRateVal);                                 // This delay controls the respratory rate
+void respiratoryWorking()
+{
+  respirationWorking = true;
+}
+
+
+
+void hitTopLimit()
+{
+
+  error = true;
+  topLimit = true;
 }
