@@ -1,6 +1,8 @@
 # Ventilator-Prototype: Bridge to Mechanical Ventilation (Bridge)
 
-Heads up: I will upload the updated 3d print files as soon as I can (working on FDA application). We are currently on version 12. The stl. files that are here now are version 4.
+Heads up, I have not been able to update the wiring diagram. The instructions has all the connections in it though.
+Also, I will update the arduino sketch once I had the time to do a little more testing with the LED and reset/test button.
+
 If anyone has experience with FDA applications for EUA and are able to help with this process, please contact me. I can use all the help I can get.
 
 Disclaimers
